@@ -3,71 +3,32 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kanguru Game</title>
+<title>Kangaroo Game</title>
 
 <style>
-body { margin:0; overflow:hidden; background:black; font-family:Arial;}
-
-#game {
-  width:100vw;
-  height:100vh;
-  position:relative;
-  overflow:hidden;
-  background:linear-gradient(#4facfe,#00f2fe);
-  touch-action:none;
+body{
+ margin:0;
+ overflow:hidden;
+ background:linear-gradient(#87CEEB,#4CAF50);
+ font-family:Arial;
 }
 
-#kangaroo {
-  position:absolute;
-  bottom:120px;
-  left:50%;
-  transform:translateX(-50%);
-  font-size:40px;
-  z-index:5;
+#game{
+ position:relative;
+ width:100vw;
+ height:100vh;
 }
 
-.obj { position:absolute; font-size:36px; text-align:center; }
-
-.price {
-  font-size:14px;
-  color:yellow;
-  font-weight:bold;
-}
-
-#score,#high {
-  position:absolute;
-  left:10px;
-  color:white;
-  font-size:18px;
-}
-
-#score { top:10px; }
-#high { top:40px; }
-
-#ui {
-  position:absolute;
-  top:10px;
-  width:100%;
-  text-align:center;
-}
-
-button { padding:10px; margin:5px; }
-
-#over {
-  position:absolute;
-  top:50%;
-  left:50%;
-  transform:translate(-50%,-50%);
-  background:white;
-  padding:20px;
-  display:none;
-}
-
-.float {
+/* HINT */
+#hint{
  position:absolute;
- color:yellow;
- font-weight:bold;
- pointer-events:none;
+ bottom:10px;
+ width:100%;
+ text-align:center;
+ color:white;
+ font-size:14px;
+ background:#00000055;
+ padding:5px;
 }
 </style>
 </head>
@@ -75,315 +36,101 @@ button { padding:10px; margin:5px; }
 <body>
 
 <div id="game">
-
-<div id="ui">
-<button onclick="startGame()">Start</button>
-<button onclick="pauseGame()">Pause</button>
-</div>
-
-<div id="kangaroo">🦘</div>
-<div id="score">Skor: 0</div>
-<div id="high">Rekor: 0</div>
-
-<div id="over">
-<h2 id="finalText"></h2>
-<button onclick="startGame()">Restart</button>
-</div>
-
+<div id="hint">Tap to jump</div>
 </div>
 
 <script>
 let game=document.getElementById("game");
-let k=document.getElementById("kangaroo");
-let scoreEl=document.getElementById("score");
-let highEl=document.getElementById("high");
-let over=document.getElementById("over");
-let finalText=document.getElementById("finalText");
+let hint=document.getElementById("hint");
 
-let x,y,vy;
-let gravity=-0.6;
-let jumpPower=12;
-
-let objs=[];
-let running=false;
-let paused=false;
+let kangaroo={x:100,y:300,vy:0};
+let gravity=0.8;
+let jumping=false;
+let obstacles=[];
 let score=0;
-let spawnTimer=0;
-let animationId;
+let running=false;
 
-const HITBOX = 12;
-
-let high=localStorage.getItem("kanguruHigh")||0;
-highEl.innerText="Rekor: "+high;
-
-/* 🎵 SES */
-let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-let musicOsc = audioCtx.createOscillator();
-let musicGain = audioCtx.createGain();
-
-musicOsc.frequency.value = 180;
-musicGain.gain.value = 0;
-
-musicOsc.connect(musicGain);
-musicGain.connect(audioCtx.destination);
-musicOsc.start();
-
-function startMusic(){
- musicGain.gain.setTargetAtTime(0.05, audioCtx.currentTime, 0.3);
-}
-
-function stopMusic(){
- musicGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.3);
-}
-
-function playSound(freq,duration=0.1,volume=0.1){
- let osc = audioCtx.createOscillator();
- let gain = audioCtx.createGain();
-
- osc.frequency.value = freq;
- gain.gain.value = volume;
-
- osc.connect(gain);
- gain.connect(audioCtx.destination);
-
- osc.start();
-
- setTimeout(()=>{ osc.stop(); }, duration*1000);
-}
-
-/* 💰 FLOAT */
-function floatText(text,x,y){
- let f=document.createElement("div");
- f.className="float";
- f.innerText="💰 "+text;
-
- f.style.left=x+"px";
- f.style.top=y+"px";
-
- game.appendChild(f);
-
- let i=0;
- let t=setInterval(()=>{
-  i++;
-  f.style.top=(y-i)+"px";
-  f.style.opacity=1-i/40;
-  if(i>40){clearInterval(t);f.remove();}
- },16);
-}
-
-/* 🎮 TOUCH */
-let lastX=null;
-
-game.addEventListener("touchstart", e=>{
- if(!running)return;
-
- if(audioCtx.state==="suspended"){ audioCtx.resume(); }
-
- let touch=e.touches[0];
-
- if(y===120){
-  vy=jumpPower;
-  playSound(500,0.1,0.15);
+function jump(){
+ if(!jumping){
+  kangaroo.vy=-15;
+  jumping=true;
  }
-
- lastX=touch.clientX;
-});
-
-game.addEventListener("touchmove", e=>{
- if(!running)return;
-
- let touch=e.touches[0];
-
- if(lastX!==null){
-  let dx=touch.clientX-lastX;
-  x+=dx*1.2;
- }
-
- lastX=touch.clientX;
-});
-
-game.addEventListener("touchend", ()=>{ lastX=null; });
-
-/* PC */
-document.addEventListener("keydown",e=>{
- if(["Space","ArrowUp"].includes(e.code)) e.preventDefault();
- if(!running)return;
-
- if(e.code==="ArrowLeft") x-=25;
- if(e.code==="ArrowRight") x+=25;
- if(e.code==="Space"&&y===120){
-  vy=jumpPower;
-  playSound(500,0.1,0.15);
- }
-});
-
-/* SPAWN */
-function spawn(){
- let o=document.createElement("div");
- o.className="obj";
-
- let r=Math.random();
-
- if(r<0.25){o.innerHTML="🦖";o.type="enemy";}
- else if(r<0.5){o.innerHTML="🚗";o.type="enemy";}
- else if(r<0.65){o.innerHTML="🛢️";o.type="enemy";}
- else if(r<0.8){o.innerHTML="☁️<div class='price'>+5</div>";o.type="cloud";}
- else if(r<0.9){o.innerHTML="🎈<div class='price'>+10</div>";o.type="bonus";}
- else{o.innerHTML="✈️<div class='price'>+15</div>";o.type="boost";}
-
- o.x=Math.random()*(window.innerWidth-40);
- o.y=-40;
-
- o.style.left=o.x+"px";
- o.style.top=o.y+"px";
-
- game.appendChild(o);
- objs.push(o);
 }
 
-/* LOOP */
-function loop(){
-
- if(!running)return;
-
- vy+=gravity;
- y+=vy;
-
- if(y<120){y=120;vy=0;}
-
- k.style.left=x+"px";
- k.style.bottom=y+"px";
-
- spawnTimer++;
- if(spawnTimer>50){
-  spawn();
-  spawnTimer=0;
- }
-
- let speed = 4;
- if(score >= 500 && score < 800){ speed = 5; }
- else if(score >= 800){ speed = 6; }
-
- for(let i=objs.length-1;i>=0;i--){
-
-  let o=objs[i];
-
-  o.y += speed;
-  o.style.top=o.y+"px";
-
-  let kr=k.getBoundingClientRect();
-  let or=o.getBoundingClientRect();
-
-  if(
-    kr.left + HITBOX < or.right - HITBOX &&
-    kr.right - HITBOX > or.left + HITBOX &&
-    kr.top + HITBOX < or.bottom - HITBOX &&
-    kr.bottom - HITBOX > or.top + HITBOX
-  ){
-
-   if(o.type==="enemy"){
-    gameOver();
-    return;
-   }
-
-   if(o.type==="cloud"){
-    score+=5;
-    floatText("+5",o.x,o.y);
-    playSound(700,0.1);
-   }
-
-   if(o.type==="bonus"){
-    score+=10;
-    floatText("+10",o.x,o.y);
-    playSound(900,0.12);
-   }
-
-   if(o.type==="boost"){
-    score+=15;
-    vy=15;
-    floatText("+15 🚀",o.x,o.y);
-    playSound(300,0.2);
-   }
-
-   scoreEl.innerText="Skor: "+score;
-
-   o.remove();
-   objs.splice(i,1);
-   continue;
-  }
-
-  if(o.y>window.innerHeight){
-   o.remove();
-   objs.splice(i,1);
-  }
- }
-
- animationId=requestAnimationFrame(loop);
-}
-
-/* START / RESUME */
-function startGame(){
-
- if(audioCtx.state==="suspended"){ audioCtx.resume(); }
-
- if(paused){
-  paused=false;
+game.addEventListener("click",()=>{
+ if(!running){
   running=true;
-  startMusic();
-  loop();
-  return;
+  hint.style.display="none";
+ }
+ jump();
+});
+
+function spawnObstacle(){
+ obstacles.push({x:window.innerWidth,y:350});
+}
+
+setInterval(()=>{
+ if(running) spawnObstacle();
+},1500);
+
+function update(){
+ if(!running) return;
+
+ kangaroo.vy+=gravity;
+ kangaroo.y+=kangaroo.vy;
+
+ if(kangaroo.y>300){
+  kangaroo.y=300;
+  jumping=false;
  }
 
- cancelAnimationFrame(animationId);
+ obstacles.forEach(o=>{
+  o.x-=6;
 
- x=window.innerWidth/2;
- y=120;
- vy=0;
+  if(Math.abs(o.x-kangaroo.x)<40 && kangaroo.y>260){
+   running=false;
+   alert("Game Over 😎 Skor: "+score);
+   location.reload();
+  }
 
- running=true;
- paused=false;
- score=0;
+  if(o.x<0){
+   score++;
+  }
+ });
 
- scoreEl.innerText="Skor: 0";
- over.style.display="none";
-
- objs.forEach(o=>o.remove());
- objs=[];
-
- spawnTimer=0;
-
- startMusic();
- loop();
+ obstacles=obstacles.filter(o=>o.x>-50);
 }
 
-/* PAUSE */
-function pauseGame(){
- paused=true;
- running=false;
- cancelAnimationFrame(animationId);
- stopMusic();
-}
-
-/* GAME OVER */
-function gameOver(){
- running=false;
- paused=false;
- cancelAnimationFrame(animationId);
- stopMusic();
-
- playSound(120,0.4,0.2);
-
- if(score>high){
-  high=score;
-  localStorage.setItem("kanguruHigh",high);
+function draw(){
+ let ctx=game.getContext?game.getContext("2d"):null;
+ if(!ctx){
+  let canvas=document.createElement("canvas");
+  canvas.width=window.innerWidth;
+  canvas.height=window.innerHeight;
+  game.appendChild(canvas);
+  ctx=canvas.getContext("2d");
+  game.ctx=ctx;
+ }else{
+  ctx=game.ctx;
  }
 
- highEl.innerText="Rekor: "+high;
+ ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
 
- finalText.innerText="Game Over - Skor: "+score;
- over.style.display="block";
+ ctx.font="40px Arial";
+ ctx.fillText("🦘",kangaroo.x,kangaroo.y);
+
+ obstacles.forEach(o=>{
+  ctx.fillText("🌵",o.x,350);
+ });
+
+ ctx.font="20px Arial";
+ ctx.fillText("Score: "+score,10,30);
 }
+
+setInterval(()=>{
+ update();
+ draw();
+},1000/60);
 </script>
 
 </body>
