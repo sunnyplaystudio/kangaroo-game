@@ -13,13 +13,10 @@ body{
  font-family:Arial;
 }
 
-#game{
- position:relative;
- width:100vw;
- height:100vh;
+canvas{
+ display:block;
 }
 
-/* HINT */
 #hint{
  position:absolute;
  bottom:10px;
@@ -35,38 +32,40 @@ body{
 
 <body>
 
-<div id="game">
 <div id="hint">Tap to jump</div>
-</div>
+<canvas id="game"></canvas>
 
 <script>
-let game=document.getElementById("game");
-let hint=document.getElementById("hint");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-let kangaroo={x:100,y:300,vy:0};
-let gravity=0.8;
-let jumping=false;
-let obstacles=[];
-let score=0;
-let running=false;
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let kangaroo = {x:100, y:300, vy:0};
+let gravity = 0.8;
+let jumping = false;
+let obstacles = [];
+let score = 0;
+let running = false;
 
 function jump(){
  if(!jumping){
-  kangaroo.vy=-15;
-  jumping=true;
+  kangaroo.vy = -15;
+  jumping = true;
  }
 }
 
-game.addEventListener("click",()=>{
+canvas.addEventListener("click",()=>{
  if(!running){
-  running=true;
-  hint.style.display="none";
+  running = true;
+  document.getElementById("hint").style.display="none";
  }
  jump();
 });
 
 function spawnObstacle(){
- obstacles.push({x:window.innerWidth,y:350});
+ obstacles.push({x:canvas.width, y:320});
 }
 
 setInterval(()=>{
@@ -76,55 +75,42 @@ setInterval(()=>{
 function update(){
  if(!running) return;
 
- kangaroo.vy+=gravity;
- kangaroo.y+=kangaroo.vy;
+ kangaroo.vy += gravity;
+ kangaroo.y += kangaroo.vy;
 
- if(kangaroo.y>300){
-  kangaroo.y=300;
-  jumping=false;
+ if(kangaroo.y > 300){
+  kangaroo.y = 300;
+  jumping = false;
  }
 
- obstacles.forEach(o=>{
-  o.x-=6;
+ obstacles.forEach((o,i)=>{
+  o.x -= 6;
 
-  if(Math.abs(o.x-kangaroo.x)<40 && kangaroo.y>260){
-   running=false;
-   alert("Game Over 😎 Skor: "+score);
+  if(Math.abs(o.x - kangaroo.x) < 40 && kangaroo.y > 260){
+   running = false;
+   alert("Game Over 😎 Score: " + score);
    location.reload();
   }
 
-  if(o.x<0){
+  if(o.x < 0){
    score++;
+   obstacles.splice(i,1);
   }
  });
-
- obstacles=obstacles.filter(o=>o.x>-50);
 }
 
 function draw(){
- let ctx=game.getContext?game.getContext("2d"):null;
- if(!ctx){
-  let canvas=document.createElement("canvas");
-  canvas.width=window.innerWidth;
-  canvas.height=window.innerHeight;
-  game.appendChild(canvas);
-  ctx=canvas.getContext("2d");
-  game.ctx=ctx;
- }else{
-  ctx=game.ctx;
- }
-
- ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+ ctx.clearRect(0,0,canvas.width,canvas.height);
 
  ctx.font="40px Arial";
- ctx.fillText("🦘",kangaroo.x,kangaroo.y);
+ ctx.fillText("🦘", kangaroo.x, kangaroo.y);
 
  obstacles.forEach(o=>{
-  ctx.fillText("🌵",o.x,350);
+  ctx.fillText("🌵", o.x, 340);
  });
 
  ctx.font="20px Arial";
- ctx.fillText("Score: "+score,10,30);
+ ctx.fillText("Score: "+score, 10, 30);
 }
 
 setInterval(()=>{
